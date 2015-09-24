@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.LinkedList;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.SelectionKey;
-import java.util.Date;
 import java.nio.ByteBuffer;
 import java.io.IOException;
 
@@ -16,7 +15,7 @@ import java.io.IOException;
  */
 
 public class Reader extends Thread {
-    private static List pool = new LinkedList();
+    private static List<SelectionKey> pool = new LinkedList<SelectionKey>();
     private static Notifier notifier = Notifier.getNotifier();
 
     public Reader() {

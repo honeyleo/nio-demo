@@ -10,7 +10,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.SelectionKey;
 import java.util.Iterator;
 import java.util.Set;
-import net.xdevelop.nioserver.event.ServerListener;
 
 
 /**
@@ -20,7 +19,7 @@ import net.xdevelop.nioserver.event.ServerListener;
  */
 
 public class Server implements Runnable {
-    private static List wpool = new LinkedList();  // 回应池
+    private static List<SelectionKey> wpool = new LinkedList<SelectionKey>();  // 回应池
     private static Selector selector;
     private ServerSocketChannel sschannel;
     private InetSocketAddress address;
@@ -67,8 +66,8 @@ public class Server implements Runnable {
                 num = selector.select();
 
                 if (num > 0) {
-                    Set selectedKeys = selector.selectedKeys();
-                    Iterator it = selectedKeys.iterator();
+                    Set<SelectionKey> selectedKeys = selector.selectedKeys();
+                    Iterator<SelectionKey> it = selectedKeys.iterator();
                     while (it.hasNext()) {
                         SelectionKey key = (SelectionKey) it.next();
                         it.remove();

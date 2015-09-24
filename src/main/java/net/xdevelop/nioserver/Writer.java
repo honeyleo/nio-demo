@@ -13,7 +13,7 @@ import java.nio.channels.SelectionKey;
  */
 
 public final class Writer extends Thread {
-    private static List pool = new LinkedList();
+    private static List<SelectionKey> pool = new LinkedList<SelectionKey>();
     private static Notifier notifier = Notifier.getNotifier();
 
     public Writer() {
