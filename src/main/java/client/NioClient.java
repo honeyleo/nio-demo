@@ -13,44 +13,63 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class NioClient {
+public class NioClient extends Thread {
 
+	public static interface ConnectFuture {
+		void finish(NioClient client);
+	}
 	private Selector selector;
 	private SocketChannel channel;
 
-	public void connect(String host, int port) throws IOException {
+	public NioClient() {
+		
+	}
+	public void connect(String host, int port, ConnectFuture future) throws IOException {
 		channel = SocketChannel.open();
 		channel.configureBlocking(false);
 		channel.connect(new InetSocketAddress(host, port));
 
 		selector = Selector.open();
 		channel.register(selector, SelectionKey.OP_CONNECT);
+		process(future);
 	}
 
-	public void process() throws IOException {
-		while (true) {
-			int keyCount = selector.select();
-			if (keyCount <= 0) {
-				continue;
-			}
-			Set<SelectionKey> readyKeys = selector.selectedKeys();
-			Iterator<SelectionKey> keyIt = readyKeys.iterator();
-			while (keyIt.hasNext()) {
-				SelectionKey key = keyIt.next();
-				keyIt.remove();
-				if (key.isConnectable()) {
-					SocketChannel channel = (SocketChannel) key.channel();
-					if (channel.isConnectionPending()) {
-						channel.finishConnect();
+	public void process(final ConnectFuture future) throws IOException {
+		Thread thread = new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				try {
+					while (true) {
+						int keyCount = selector.select();
+						if (keyCount <= 0) {
+							continue;
+						}
+						Set<SelectionKey> readyKeys = selector.selectedKeys();
+						Iterator<SelectionKey> keyIt = readyKeys.iterator();
+						while (keyIt.hasNext()) {
+							SelectionKey key = keyIt.next();
+							keyIt.remove();
+							if (key.isConnectable()) {
+								SocketChannel channel = (SocketChannel) key.channel();
+								if (channel.isConnectionPending()) {
+									channel.finishConnect();
+								}
+								channel.configureBlocking(false);
+								future.finish(NioClient.this);
+								break;
+							} else if (key.isReadable()) {
+								SocketChannel channel = (SocketChannel) key.channel();
+								NioClient.this.read(channel);
+							}
+						}
 					}
-					channel.configureBlocking(false);
-					break;
-				} else if (key.isReadable()) {
-					SocketChannel channel = (SocketChannel) key.channel();
-					this.read(channel);
+				} catch(Exception e) {
+					e.printStackTrace();
 				}
 			}
-		}
+		});
+		thread.start();
 	}
 
 	public void heartBeat(SocketChannel channel) {
@@ -99,28 +118,43 @@ public class NioClient {
 		channel.register(selector, SelectionKey.OP_READ);
 
 	}
-	static NioClient client = null;
+	static final ScheduledExecutorService scheduled = Executors.newSingleThreadScheduledExecutor();
 	public static void main(String[] args) {
 		try {
-			ScheduledExecutorService scheduled = Executors.newSingleThreadScheduledExecutor();
-			scheduled.scheduleWithFixedDelay(new Runnable() {
-				
-				@Override
-				public void run() {
-					try {
+			
+			for(int i = 0; i < 100; i++) {
+				NioClient client = new NioClient();
+				client.connect("127.0.0.1", 60000, new ConnectFuture() {
+					
+					@Override
+					public void finish(final NioClient client) {
 						ByteBuffer buf = ByteBuffer.allocate(4);
 						buf.putShort((short)2);
 						buf.putShort((short)1);
 						buf.flip();
-						client.write(buf);
-					} catch(Exception e) {
-						System.err.println(e);
+						try {
+							client.write(buf);
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+						scheduled.scheduleWithFixedDelay(new Runnable() {
+							
+							@Override
+							public void run() {
+								try {
+									ByteBuffer buf = ByteBuffer.allocate(4);
+									buf.putShort((short)2);
+									buf.putShort((short)1);
+									buf.flip();
+									client.write(buf);
+								} catch(Exception e) {
+									System.err.println(e);
+								}
+							}
+						}, 10, 10, TimeUnit.SECONDS);
 					}
-				}
-			}, 10, 10, TimeUnit.SECONDS);
-			client = new NioClient();
-			client.connect("127.0.0.1", 60000);
-			client.process();
+				});
+			}
 			
 		} catch (IOException e) {
 			e.printStackTrace();
